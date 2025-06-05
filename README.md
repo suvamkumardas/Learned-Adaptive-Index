@@ -1,8 +1,8 @@
 # Learned-Adaptive-Index
 
 There are two .cpp files:
-	- test_lai_with_predictions.cpp (For LAI with predictions enabled)
-	- test_lai.cpp (For LAI with predictions disabled)
+- test_lai_with_predictions.cpp (For LAI with predictions enabled)
+- test_lai.cpp (For LAI with predictions disabled)
 
 The data files must be stored at "data_and_queries/100_million/". As of now the data file is absent due to space restrictions.
 
