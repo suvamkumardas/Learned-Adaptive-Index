@@ -21,20 +21,19 @@ template <typename KeyType>
 class LAI{
 
     private:
-        std::vector<rs::Coord<KeyType>>& data;
+        std::vector<rs::Coord<KeyType>> data;
         std::vector<KeyType> lowValTable;
         std::vector<KeyType> highValTable;
         std::vector<long> lowPosTable;
         std::vector<long> highPosTable;
         std::vector<baseLearnedModel<KeyType>* > learnedIndexTable;
-        std::vector<bool> boundCheckedForInsertAndPendingData;
         std::vector<rs::Coord<KeyType>> pendingInserts;
         int error;
         queryType qType;
         bool useLearnedSort, hasInserts;
         unsigned long queryTypeCount[MAX_QUERY_TYPE];
         double queryRunTime[MAX_QUERY_TYPE];
-        size_t initial_num_radix, bucket_size;
+        size_t initial_num_radix, max_error, bucket_size;
         //double partitionTime, sortTime, learnedIndexBuildTime;
 
         static bool compare_by_key (const rs::Coord<KeyType>& p1, const rs::Coord<KeyType>& p2) {
@@ -44,13 +43,13 @@ class LAI{
           
     public:
 
-        LAI(std::vector<rs::Coord<KeyType>> &inputData, size_t initial_num_radix=18,
-            size_t max_error=32, size_t bucket_size=1024, bool useLearnedSort=true) : data(inputData){
-            //this->data = data;
+        LAI(std::vector<rs::Coord<KeyType>> data, size_t initial_num_radix=18, size_t max_error=32, size_t bucket_size=1024, bool useLearnedSort=true)
+        {
+            this->data = data;
             this->data.insert(this->data.begin(), rs::Coord<KeyType>{static_cast<KeyType>(-INFINITY), -1});
             this->data.push_back(rs::Coord<KeyType>{static_cast<KeyType>(INFINITY), -1});
             this->initial_num_radix = initial_num_radix;
-            this->error = max_error;
+            this->max_error = max_error;
             this->bucket_size = bucket_size;
             this->useLearnedSort = useLearnedSort;
             //this->partitionTime = this->sortTime = this->learnedIndexBuildTime = 0;
@@ -78,8 +77,8 @@ class LAI{
             else
             {
                 size_t finalSize = pendingInserts.size() + newData.size();
-                std::vector<rs::Coord<KeyType>> tempData(finalSize);
-                //tempData.resize(finalSize);
+                std::vector<rs::Coord<KeyType>> tempData;
+                tempData.resize(finalSize);
                 std::merge(pendingInserts.begin(), pendingInserts.end(), newData.begin(), newData.end(), tempData.begin(), compare_by_key);
                 pendingInserts = tempData;
             }
@@ -98,15 +97,14 @@ class LAI{
                 if (highItr == pendingInserts.end() || (*highItr).x > high)
                     highItr--;
                 size = highItr - lowItr + 1;
-                if (size > 0)
-                    res = new rs::Coord<KeyType> [size];
+                res = new rs::Coord<KeyType> [size];
                 std::copy(lowItr, highItr+1, res);
                 pendingInserts.erase(lowItr,highItr+1);   
             }
             return std::pair<rs::Coord<KeyType>*, size_t> {res, size};
         }
 
-        std::tuple<long, long, rs::Coord<KeyType>*, size_t> query(KeyType lowVal, KeyType highVal, bool measure_stats=true)
+        std::pair<rs::Coord<KeyType>*, size_t> query(KeyType lowVal, KeyType highVal, bool measure_stats=true)
         {
             int size = this->lowValTable.size();
             long lowValPosInPartitionTable = -1, highValPosInPartitionTable = -1, lowValPosInArray, highValPosInArray;
@@ -128,8 +126,6 @@ class LAI{
                     break;
                 }      
             }
-
-            std::fill(boundCheckedForInsertAndPendingData.begin(), boundCheckedForInsertAndPendingData.end(), false);
 
             auto started = std::chrono::high_resolution_clock::now();  
             std::tuple<long, long, rs::Coord<KeyType>*, size_t> pos;
@@ -184,7 +180,6 @@ class LAI{
             std::cout << "****************************************";
             #endif
             
-            /*
             long lowPosInArray = std::get<0>(pos), highPosInArray = std::get<1>(pos);
             rs::Coord<KeyType> *resInBuffer = std::get<2>(pos);
             size_t sizeInBuffer = std::get<3>(pos);
@@ -197,30 +192,10 @@ class LAI{
             std::copy(resInBuffer, resInBuffer + sizeInBuffer, finalResult+sizeInArr);
             print_buffer(finalResult, totalSize);
             return {finalResult, totalSize};
-            */
-           return pos;
             
         }
 
 
-#if 1
-        long partition(long startPos, long endPos, KeyType pivot)
-        {
-            auto startIter(data.begin() + startPos);
-            auto endIter(data.begin() + endPos+1);
-
-            auto middle1 = std::partition(startIter, endIter, [pivot](const auto& em)
-            {
-                return em.x < pivot;
-            });
-            auto middle2 = std::partition(middle1, endIter, [pivot](const auto& em)
-            {
-                return !(pivot < em.x);
-            });
-
-            return middle1 - data.begin();
-        }
-#else        
         
         long partition(long startPos, long endPos, KeyType pivot)
         {    
@@ -283,7 +258,7 @@ class LAI{
                 
             return j;
         }    
-#endif        
+        
 
 
 
@@ -298,7 +273,7 @@ class LAI{
 
             //auto started = std::chrono::high_resolution_clock::now();
             long p = this->partition(startPos, endPos, lowVal);
-            long q = this->partition(data[p].x == lowVal ? p+1 : p, endPos, highVal);
+            long q = this->partition(p+1, endPos, highVal);
             //auto iter = std::partition(data.begin() + startPos, data.begin() + endPos + 1, [lowVal](KeyType k) {return k < lowVal;});
             //auto pos = std::find(data.begin() + startPos, data.begin() + endPos + 1, lowVal);
             //std::swap(*iter,*pos);
@@ -318,15 +293,15 @@ class LAI{
             //pos = std::partition(pos+1, this->data.begin()+endPos+1, [highVal](KeyType x){return highVal > x;});
             //pos = std::partition(this->data.begin()+startPos, this->data.begin()+endPos+1, std::bind2nd(less<KeyType>(), highVal));
             //long q = pos - this->data.begin();
-            if (data[q].x > highVal)
-                q -= 1;
+            if (data[p].x != lowVal)
+                p += 1;
         
             if (p < q)
             {
                 auto startIter(data.begin() + p);
                 auto endIter(data.begin() + q + 1);
                 //started = std::chrono::high_resolution_clock::now(); 
-                if(!this->useLearnedSort || data[p].x != lowVal || data[q].x != highVal)
+                if(!this->useLearnedSort)
                     std::sort(startIter, endIter, compare_by_key);
                 else
                     learnedSort(data, p, q);
@@ -375,7 +350,6 @@ class LAI{
         }
         */            
             
-#if 0
         void learnedSort(std::vector<rs::Coord<KeyType>>&data, long startPos, long endPos)
         {
             #ifdef DEBUG_LEARNED_SORT
@@ -437,66 +411,6 @@ class LAI{
             std::cout << "Learned Sort = " << timeToLearnedSort << std::endl;
             #endif            
         }
-#else
-        void learnedSort(std::vector<rs::Coord<KeyType>>&data, long startPos, long endPos)
-        {
-            #ifdef DEBUG_LEARNED_SORT
-            vector<KeyType> data_2(data.begin(), data.end());
-            auto tempIter1 = data_2.begin() + startPos + 1, tempIter2 = data_2.begin() + endPos;
-            auto started = std::chrono::high_resolution_clock::now(); 
-            std::sort(tempIter1, tempIter2);
-            auto done = std::chrono::high_resolution_clock::now();
-            double timeToNativeSort = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(done-started).count();
-            
-            started = std::chrono::high_resolution_clock::now();
-            #endif 
-            
-            rs::Coord<KeyType> startVal = data[startPos], endVal = data[endPos];
-            double slope = (double)(endPos - startPos) / (double)(endVal.x - startVal.x);
-            double intercept = endPos - (slope * endVal.x);
-
-            long size = endPos - startPos - 1;
-            rs::Coord<KeyType>* overflow_buffer = new rs::Coord<KeyType> [size];
-            size_t overflow_buffer_pos = 0;
-
-            rs::Coord<KeyType> maxVal = data[data.size() - 1];
-            rs::Coord<KeyType>* temp = new rs::Coord<KeyType> [size];
-            std::fill(temp, temp+size, maxVal);
-
-            //The elements at startPos and endPos are already in their correct locations, so no need
-            //to consider them
-            for (long i = startPos + 1 ; i < endPos ; i++)
-            {
-                rs::Coord<KeyType> key = data[i];
-                long pos = round(slope * key.x + intercept) - (startPos + 1);
-                if (temp[pos].x == maxVal.x)
-                    temp[pos] = key;
-                else
-                {
-                    overflow_buffer[overflow_buffer_pos] = key;
-                    overflow_buffer_pos++;
-                }
-            }
-
-            auto new_end = std::remove(temp, temp+size, maxVal);
-            size_t new_end_pos = new_end - temp;
-            //temp.erase(new_end, temp.end());
-            //temp.erase(std::remove(temp.begin(), temp.end(), maxVal), temp.end());
-            std::sort(overflow_buffer, overflow_buffer+overflow_buffer_pos, compare_by_key);
-            
-            auto startIter = data.begin() + startPos + 1;
-            std::merge(temp, temp+new_end_pos, overflow_buffer, overflow_buffer+overflow_buffer_pos, startIter, compare_by_key);
-            
-            #ifdef DEBUG_LEARNED_SORT
-            done = std::chrono::high_resolution_clock::now();
-            double timeToLearnedSort = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(done-started).count();
-
-            std::cout << "\nNumber of Elements to sort = " << endPos - startPos + 1 << std::endl;
-            std::cout << "Native Sort = " << timeToNativeSort << std::endl;
-            std::cout << "Learned Sort = " << timeToLearnedSort << std::endl;
-            #endif            
-        }
-#endif
         
         long  getStartPos(KeyType lowVal)
         {
@@ -625,9 +539,9 @@ class LAI{
         
         baseLearnedModel<KeyType>*  buildLearnedIndexModel(long startPos, long endPos)
         {
-            baseLearnedModel<KeyType> *learnedIndexModel = new radixSplineModel<KeyType>(this->data, this->initial_num_radix,this->error, this->bucket_size);
+            baseLearnedModel<KeyType> *learnedIndexModel = new radixSplineModel<KeyType>(this->error);
             //baseLearnedModel<KeyType> *learnedIndexModel = new listOfSegments<KeyType>(this->error);
-            learnedIndexModel->buildIndex(startPos, endPos);
+            learnedIndexModel->buildIndex(this->data, startPos, endPos);
             return learnedIndexModel;
         } 
 
@@ -678,69 +592,24 @@ class LAI{
 
         std::tuple<long, long, rs::Coord<KeyType>*, size_t>  buildLearnedIndex(KeyType lowVal, KeyType highVal, long lowValPos=-1, long highValPos=-1)
         {
-            if (lowValPos > highValPos)
-            {
-                long pos = std::lower_bound(highPosTable.begin(), highPosTable.end(), highValPos) - highPosTable.begin();
-                KeyType newLowVal = highValTable[pos];
-                baseLearnedModel<KeyType> *learnedIndexModel = learnedIndexTable[pos];
-                std::pair<rs::Coord<KeyType>*, size_t> insertedAndPendingResults1 = getResultsFromInsertedAndPendingData(learnedIndexModel, newLowVal, highVal);
-                std::pair<rs::Coord<KeyType>*, size_t> insertedAndPendingResults2 = {nullptr, 0};
-                rs::Coord<KeyType>* finalResultData = nullptr;
-                size_t finalResultSize = 0;
-                if (pos < highPosTable.size() - 1)
-                {
-                    learnedIndexModel = learnedIndexTable[pos+1];
-                    insertedAndPendingResults2 = getResultsFromInsertedAndPendingData(learnedIndexModel, newLowVal, highVal);
-                }
-                finalResultSize = insertedAndPendingResults1.second + insertedAndPendingResults2.second;
-                if (finalResultSize > 0)
-                {
-                #ifdef GET_DATA    
-                    finalResultData = new rs::Coord<KeyType> [finalResultSize];
-                    std::copy(insertedAndPendingResults1.first, insertedAndPendingResults1.first + insertedAndPendingResults1.second, finalResultData);
-                    std::copy(insertedAndPendingResults2.first, insertedAndPendingResults2.first + insertedAndPendingResults2.second, finalResultData + insertedAndPendingResults1.second);
-                #endif
-                }
-                return {lowValPos, highValPos, finalResultData, finalResultSize};
-            }
-  
             std::pair<long, long> pos = crackAndSort(lowVal, highVal, lowValPos, highValPos);
             long startPos = pos.first, endPos = pos.second;
-                            
+            
             if (startPos > endPos)
             {
                 cout << "No element in this range" << endl;
                 return {-1, -1, nullptr, 0};
             }
-
+                
             if ((startPos == endPos) && 
                     ((this->qType == CRACK_LOW_VALUE) || (this->qType == CRACK_HIGH_VALUE)
                     || (this->qType == BUILD_LEARNED_INDEX) || (this->qType == OVERLAP)))
                 return {startPos, endPos, nullptr, 0};
-
-            long tempStartPos = startPos, tempEndPos = endPos;
-            
-            /*
-            KeyType tempLowVal = lowVal, tempHighVal = highVal;
-            auto it = std::upper_bound(lowPosTable.begin(), lowPosTable.end(), tempEndPos);
-            if (it != lowPosTable.end() && *it == tempEndPos + 2)
-                tempHighVal = data[++tempEndPos].x;
-
-            it = std::lower_bound(highPosTable.begin(), highPosTable.end(), tempStartPos);
-            if (it != highPosTable.end() && *it == tempStartPos - 2)
-                tempLowVal = data[--tempStartPos].x;
-            */    
-
+                
             //auto started = std::chrono::high_resolution_clock::now(); 
-            baseLearnedModel<KeyType> *learnedIndexModel = this->buildLearnedIndexModel(tempStartPos, tempEndPos);
-            //std::pair<rs::Coord<KeyType>*, size_t> insertedAndPendingResults = getResultsFromInsertedAndPendingData(learnedIndexModel, lowVal, highVal);
+            baseLearnedModel<KeyType> *learnedIndexModel = this->buildLearnedIndexModel(startPos, endPos);
+            std::pair<rs::Coord<KeyType>*, size_t> insertedAndPendingResults = getResultsFromInsertedAndPendingData(learnedIndexModel, lowVal, highVal);
             
-            //lowVal = tempLowVal, highVal = tempHighVal;
-            //lowVal = data[tempStartPos].x, highVal = data[tempEndPos].x;
-            std::pair<long, long> p = learnedIndexModel->getStartAndEndPos();
-            tempStartPos = p.first, tempEndPos = p.second;
-            KeyType origLowVal = lowVal, origHighVal = highVal;
-            lowVal = data[tempStartPos].x, highVal = data[tempEndPos].x;
             //auto done = std::chrono::high_resolution_clock::now();
             //this->learnedIndexBuildTime += (double)std::chrono::duration_cast<std::chrono::nanoseconds>(done-started).count();
 
@@ -753,22 +622,15 @@ class LAI{
             this->highValTable.insert(insertPosIter2, highVal);
 
             auto insertPosIter3 = this->lowPosTable.begin() + insertPos;
-            this->lowPosTable.insert(insertPosIter3, tempStartPos);
+            this->lowPosTable.insert(insertPosIter3, startPos);
 
             auto insertPosIter4 = this->highPosTable.begin() + insertPos;
-            this->highPosTable.insert(insertPosIter4, tempEndPos);
+            this->highPosTable.insert(insertPosIter4, endPos);
 
             auto insertPosIter5 = this->learnedIndexTable.begin() + insertPos;
             this->learnedIndexTable.insert(insertPosIter5, learnedIndexModel);
 
-            auto insertPosIter6 = this->boundCheckedForInsertAndPendingData.begin() + insertPos;
-            this->boundCheckedForInsertAndPendingData.insert(insertPosIter6, true);
-
-            std::pair<rs::Coord<KeyType>*, size_t> insertedAndPendingResults = getResultsFromInsertedAndPendingData(learnedIndexModel, origLowVal, origHighVal);
-            p = learnedIndexModel->getStartAndEndPos();
-            tempStartPos = p.first, tempEndPos = p.second;
-
-            return {tempStartPos, tempEndPos, insertedAndPendingResults.first, insertedAndPendingResults.second};
+            return {startPos, endPos, insertedAndPendingResults.first, insertedAndPendingResults.second};
         }
 #endif
 
@@ -797,7 +659,6 @@ class LAI{
 
         void print_buffer(rs::Coord<KeyType>* buff, size_t size)
         {
-            return;
             std::cout << "\n";
             for (int i = 0 ; i < size ; i++)
             {
@@ -806,35 +667,14 @@ class LAI{
             std::cout << "\n";
         }
 
-        void updateAllTable(long pos, KeyType lowVal, KeyType highVal, double lowValPos, double highValPos)
-        {
-            //assert(pos >= 0 && pos < lowValTable.size());
-            if (this->lowPosTable.size() == 0 || pos >= this->lowPosTable.size())
-                return;
-            double oldHighValPos = this->highPosTable[pos];    
-            this->lowValTable[pos] = lowVal;
-            this->highValTable[pos] = highVal;
-            this->lowPosTable[pos] = lowValPos;
-            this->highPosTable[pos] = highValPos;
-            //this->learnedIndexTable[pos] = model;
 
-            size_t incr = this->highPosTable[pos] - oldHighValPos;
-
-            for (int i = pos+1 ; i < this->lowPosTable.size() ; i++)
-            {
-                this->lowPosTable[i] += incr;
-                this->highPosTable[i] += incr;
-                this->learnedIndexTable[i]->setStartAndEndPos(lowPosTable[i], highPosTable[i]);
-            }
-        }
-        
         std::pair<rs::Coord<KeyType>*, size_t> getResultsFromInsertedAndPendingData(baseLearnedModel<KeyType> *learnedIndexModel, KeyType lowVal, KeyType highVal)
         {
             rs::Coord<KeyType>  *resInBuffer = nullptr;
             size_t resInBufferSize = 0;
             if (hasInserts)
             {
-                std::pair<rs::Coord<KeyType>*, size_t> p1 = learnedIndexModel->rangeSearchOnInsertedData(lowVal, highVal);
+                std::pair<rs::Coord<KeyType>*, size_t> p1 = learnedIndexModel->rangeSearchOnInsertedData(this->data, lowVal, highVal);
                 print_buffer(p1.first, p1.second);
                 std::pair<rs::Coord<KeyType>*, size_t> p2 = getPendingData(lowVal, highVal);
                 print_buffer(p2.first, p2.second);
@@ -845,25 +685,16 @@ class LAI{
                 {
                     rs::Coord<KeyType> c = p2.first[i];
                     int status = learnedIndexModel->insertData(c);
-                    if (status == -1){
-                        std::pair<long, long> p = learnedIndexModel->retrainModel();
-                        long startPos = p.first, endPos = p.second;
-                        size_t pos = std::lower_bound(lowPosTable.begin(), lowPosTable.end(), startPos) - lowPosTable.begin();
-                        updateAllTable(pos, data[startPos].x, data[endPos].x, startPos, endPos);
-                        status = learnedIndexModel->insertData(c);
-                        if (status == -1)
-                            failedToInsert.push_back(c);
-                    }
+                    if (status == -1)
+                        failedToInsert.push_back(c);
                 }
                 if (failedToInsert.size() > 0)
                     updatePendingInserts(failedToInsert);
 
                 resInBufferSize = p1.second + p2.second;
-            #ifdef GET_DATA    
                 resInBuffer = new rs::Coord<KeyType> [resInBufferSize];
                 std::copy(p1.first, p1.first + p1.second, resInBuffer);
                 std::copy(p2.first, p2.first + p2.second, resInBuffer+p1.second);
-            #endif    
                 print_buffer(resInBuffer, resInBufferSize);
             }
             return {resInBuffer, resInBufferSize};
@@ -885,43 +716,14 @@ class LAI{
                 KeyType nextLow = lowValTable[lowValPosInPartitionTable];
                 std::pair<rs::Coord<KeyType>*, size_t> p = getPendingData(tempHigh, nextLow);
 
-                rs::Coord<KeyType>* temp = nullptr;
-                if (resSize + p.second > 0)
-                {
-                #ifdef GET_DATA    
-                    temp = new rs::Coord<KeyType> [resSize + p.second];
-                    std::copy(res, res+resSize, temp);
-                    std::copy(p.first, p.first+p.second,temp+resSize);
-                #endif    
-                    resSize += p.second;
-                    res = temp;
-                }
+                rs::Coord<KeyType>* temp = new rs::Coord<KeyType> [resSize + p.second];
+                std::copy(res, res+resSize, temp);
+                std::copy(p.first, p.first+p.second,temp+resSize);
+                resSize += p.second;
+                res = temp;
 
                 baseLearnedModel<KeyType> *learnedIndexModel1 = learnedIndexTable[lowValPosInPartitionTable - 1];
-                std::pair<rs::Coord<KeyType>*, size_t> p1 = learnedIndexModel1->getAllElementsGreaterThanMax();
-                if (resSize + p1.second > 0)
-                {
-                #ifdef GET_DATA
-                    temp = new rs::Coord<KeyType> [resSize + p1.second];
-                    std::copy(res, res+resSize, temp);
-                    std::copy(p1.first, p1.first+p1.second,temp+resSize);
-                #endif
-                    resSize += p1.second;
-                    res = temp;
-                }
                 baseLearnedModel<KeyType> *learnedIndexModel2 = learnedIndexTable[lowValPosInPartitionTable];
-                p1 = learnedIndexModel2->getAllElementsLessThanMin();
-                if (resSize + p1.second > 0)
-                {
-                #ifdef GET_DATA
-                    temp = new rs::Coord<KeyType> [resSize + p1.second];
-                    std::copy(res, res+resSize, temp);
-                    std::copy(p1.first, p1.first+p1.second,temp+resSize);
-                #endif    
-                    resSize += p1.second;
-                    res = temp;
-                }
-                
                 for(int i = 0 ; i < p.second ; i++)
                 {
                     rs::Coord<KeyType> c = p.first[i];
@@ -930,14 +732,7 @@ class LAI{
                     {
                         status = learnedIndexModel2->insertData(c);
                         if (status == -1)
-                        {
-                            std::pair<long, long> p = learnedIndexModel1->retrainModel();
-                            long startPos = p.first, endPos = p.second;
-                            updateAllTable(lowValPosInPartitionTable - 1, data[startPos].x, data[endPos].x, startPos, endPos);
-                            status = learnedIndexModel1->insertData(c);
-                            if (status == -1)
-                                failedToInsert.push_back(c);
-                        }
+                            failedToInsert.push_back(c);
                     }
                 }
                 tempHigh = highValTable[lowValPosInPartitionTable];
@@ -953,12 +748,9 @@ class LAI{
         std::tuple<long, long, rs::Coord<KeyType>*, size_t>  getResultsFromSameBound(KeyType lowVal, KeyType highVal, long posInPartitionTable)
         {
             baseLearnedModel<KeyType> *learnedIndexModel = this->learnedIndexTable[posInPartitionTable];
-            long lowValPosInArray = learnedIndexModel->getPositionGreaterThanOrEquals(lowVal);
-            long highValPosInArray = learnedIndexModel->getPositionGreaterThanOrEquals(highVal);
-            if (data[highValPosInArray].x > highVal)
-                highValPosInArray--;
+            long lowValPosInArray = learnedIndexModel->getPosition(this->data,lowVal);
+            long highValPosInArray = learnedIndexModel->getPosition(this->data,highVal);
             std::pair<rs::Coord<KeyType>*, size_t> insertedAndPendingResults = getResultsFromInsertedAndPendingData(learnedIndexModel, lowVal, highVal);
-            boundCheckedForInsertAndPendingData[posInPartitionTable] = true;
             return {lowValPosInArray, highValPosInArray, insertedAndPendingResults.first, insertedAndPendingResults.second};
         }
 
@@ -983,18 +775,15 @@ class LAI{
             std::tuple<long, long, rs::Coord<KeyType>*, size_t> firstResults = getResultsFromSameBound(lowVal, tempHigh, lowValPosInPartitionTable);
             rs::Coord<KeyType>* firstInserted = std::get<2>(firstResults);
             size_t firstSize = std::get<3>(firstResults);
-            print_buffer(firstInserted, firstSize);
 
             KeyType tempLow = this->lowValTable[highValPosInPartitionTable];
             std::tuple<long, long, rs::Coord<KeyType>*, size_t> secondResults = getResultsFromSameBound(tempLow, highVal, highValPosInPartitionTable);
             rs::Coord<KeyType>* secondInserted = std::get<2>(secondResults);
             size_t secondSize = std::get<3>(secondResults);
-            print_buffer(secondInserted, secondSize);
 
-            std::pair<rs::Coord<KeyType>*, size_t> middleResults = this->buildIndexForGap(lowValPosInPartitionTable, highValPosInPartitionTable, lowVal, highVal);
+            std::pair<rs::Coord<KeyType>*, size_t> middleResults = this->buildIndexForGap(lowValPosInPartitionTable, highValPosInPartitionTable);
             rs::Coord<KeyType>* middleInserted = middleResults.first;
             size_t middleSize = middleResults.second;
-            print_buffer(middleInserted, middleSize);
 
             //insert elements to models falling between two sorted bounds
             auto it = std::lower_bound(this->lowValTable.begin(), this->lowValTable.end(), tempLow);
@@ -1002,17 +791,13 @@ class LAI{
             std::pair<rs::Coord<KeyType>*, size_t> insertedDataBetween = insertDataBetweenBoundaries(lowValPosInPartitionTable, newHighValPosInPartitionTable);
             rs::Coord<KeyType>* betweenData = insertedDataBetween.first;
             size_t betweenDataSize = insertedDataBetween.second;
-            print_buffer(betweenData, betweenDataSize);
             
             size_t finalInsertedAndPendingResultsSize = firstSize + secondSize + middleSize + betweenDataSize;
-            rs::Coord<KeyType>* finalInsertedAndPendingResults = nullptr;
-        #ifdef GET_DATA
-            finalInsertedAndPendingResults = new rs::Coord<KeyType> [finalInsertedAndPendingResultsSize];
+            rs::Coord<KeyType>* finalInsertedAndPendingResults = new rs::Coord<KeyType> [finalInsertedAndPendingResultsSize];
             std::copy(firstInserted, firstInserted+firstSize, finalInsertedAndPendingResults);
             std::copy(secondInserted, secondInserted+secondSize, finalInsertedAndPendingResults+firstSize);
             std::copy(middleInserted, middleInserted+middleSize, finalInsertedAndPendingResults+firstSize+secondSize);
             std::copy(betweenData, betweenData+betweenDataSize, finalInsertedAndPendingResults+firstSize+secondSize+middleSize);
-        #endif
             return {std::get<0>(firstResults), std::get<1>(secondResults), finalInsertedAndPendingResults, finalInsertedAndPendingResultsSize};
         }
 #endif
@@ -1065,69 +850,6 @@ class LAI{
             }
         #endif
 
-            long firstPosInPartitionTable = this->getFirstEntryGreaterThanLowVal(lowVal);
-            long startPos = (firstPosInPartitionTable == 0) ? 1 : this->highPosTable[firstPosInPartitionTable - 1] + 1;
-            long endPos = this->lowPosTable[firstPosInPartitionTable] - 1;
-            KeyType endVal = this->getMaxElement(startPos, endPos);
-            std::tuple<long, long, rs::Coord<KeyType>*, size_t> firstResults;
-            firstResults = this->buildLearnedIndex(lowVal, endVal, startPos, endPos);
-            long lowValPosInArray = std::get<0>(firstResults);
-            rs::Coord<KeyType>* firstInserted = std::get<2>(firstResults);
-            size_t firstSize = std::get<3>(firstResults);
-            print_buffer(firstInserted, firstSize);
-
-            // since there is an insertion in the partition table so both firstPosInPartitionTable and
-            // highValPosInPartitionTable should increment
-            if (startPos < endPos && lowVal < endVal)
-            {
-                //firstPosInPartitionTable = std::lower_bound(lowValTable.begin(), lowValTable.end(), lowVal+1) - lowValTable.begin();
-                //highValPosInPartitionTable = std::lower_bound(highValTable.begin(), highValTable.end(), endVal) - highValTable.begin();
-                firstPosInPartitionTable++;
-                highValPosInPartitionTable++;
-            }
-
-            KeyType tempLow = this->lowValTable[firstPosInPartitionTable];
-            std::tuple<long, long, rs::Coord<KeyType>*, size_t> secondResult;
-            if (firstPosInPartitionTable == highValPosInPartitionTable)
-            {
-                secondResult = getResultsFromSameBound(tempLow, highVal, firstPosInPartitionTable);
-            }
-            else
-            {
-                secondResult = getResultsFromDifferentBounds(tempLow, highVal, firstPosInPartitionTable, highValPosInPartitionTable);
-            }
-            highValPosInArray = std::get<1>(secondResult);
-            rs::Coord<KeyType>* secondInserted = std::get<2>(secondResult);
-            size_t secondSize = std::get<3>(secondResult);
-            print_buffer(secondInserted, secondSize);
-
-            std::pair<rs::Coord<KeyType>*, size_t> insertedDataBetween = {nullptr, 0};
-            if (firstPosInPartitionTable > 0)
-                insertedDataBetween = insertDataBetweenBoundaries(firstPosInPartitionTable - 1, firstPosInPartitionTable);
-            rs::Coord<KeyType>* betweenData = insertedDataBetween.first;
-            size_t betweenDataSize = insertedDataBetween.second;
-            print_buffer(betweenData, betweenDataSize);
-
-            size_t finalInsertedAndPendingResultsSize = firstSize + secondSize + betweenDataSize;
-            rs::Coord<KeyType>* finalInsertedAndPendingResults = nullptr;
-        #ifdef GET_DATA    
-            finalInsertedAndPendingResults = new rs::Coord<KeyType> [finalInsertedAndPendingResultsSize];
-            std::copy(firstInserted, firstInserted+firstSize, finalInsertedAndPendingResults);
-            std::copy(secondInserted, secondInserted+secondSize, finalInsertedAndPendingResults+firstSize);
-            std::copy(betweenData, betweenData+betweenDataSize, finalInsertedAndPendingResults+firstSize+secondSize);
-        #endif    
-            if (lowVal == endVal)
-            {
-                std::cout << "crackForLowValue - This case is not handled properly" << std::endl;
-                std::cout << "Low = " << lowVal << " , High = " << highVal << std::endl;
-            }
-
-
-
-            
-            
-            
-    #if 0        
             KeyType tempLow = this->lowValTable[highValPosInPartitionTable];
             std::tuple<long, long, rs::Coord<KeyType>*, size_t> secondResults = getResultsFromSameBound(tempLow, highVal, highValPosInPartitionTable);
             highValPosInArray = std::get<1>(secondResults);
@@ -1136,7 +858,7 @@ class LAI{
 
 
             long firstPosInPartitionTable = this->getFirstEntryGreaterThanLowVal(lowVal);
-            std::pair<rs::Coord<KeyType>*, size_t> gapInsertedResult = this->buildIndexForGap(firstPosInPartitionTable, highValPosInPartitionTable, lowVal, highVal);
+            std::pair<rs::Coord<KeyType>*, size_t> gapInsertedResult = this->buildIndexForGap(firstPosInPartitionTable, highValPosInPartitionTable);
             rs::Coord<KeyType>* middleInserted = gapInsertedResult.first;
             size_t middleSize = gapInsertedResult.second;
 
@@ -1195,7 +917,6 @@ class LAI{
             std::copy(secondInserted, secondInserted+secondSize, finalInsertedAndPendingResults+firstSize);
             std::copy(middleInserted, middleInserted+middleSize, finalInsertedAndPendingResults+firstSize+secondSize);
             std::copy(betweenData, betweenData+betweenDataSize, finalInsertedAndPendingResults+firstSize+secondSize+middleSize);
-#endif
 
             return {lowValPosInArray, highValPosInArray, finalInsertedAndPendingResults, finalInsertedAndPendingResultsSize};
         }
@@ -1253,83 +974,35 @@ class LAI{
             }
 #endif            
 
+            KeyType tempHigh = this->highValTable[lowValPosInPartitionTable];
+            std::tuple<long, long, rs::Coord<KeyType>*, size_t> firstResults = getResultsFromSameBound(lowVal, tempHigh, lowValPosInPartitionTable);
+            rs::Coord<KeyType>* firstInserted = std::get<2>(firstResults);
+            size_t firstSize = std::get<3>(firstResults);
+            lowValPosInArray = std::get<0>(firstResults);
+
             long lastPosInPartitionTable = this->getLastEntryLessThanHighVal(highVal);
-            KeyType tempHigh = this->highValTable[lastPosInPartitionTable];
-            std::tuple<long, long, rs::Coord<KeyType>*, size_t> firstResult;
-            if (lowValPosInPartitionTable == lastPosInPartitionTable)
-                firstResult = getResultsFromSameBound(lowVal, tempHigh, lowValPosInPartitionTable);
-            else
-                firstResult = getResultsFromDifferentBounds(lowVal, tempHigh, lowValPosInPartitionTable, lastPosInPartitionTable);    
-            lowValPosInArray = std::get<0>(firstResult);
-            rs::Coord<KeyType>* firstInserted = std::get<2>(firstResult);
-            size_t firstSize = std::get<3>(firstResult);
-            print_buffer(firstInserted, firstSize);
+            long oldPartitionTableSize = this->lowValTable.size();
+            std::pair<rs::Coord<KeyType>*, size_t> middleResults = this->buildIndexForGap(lowValPosInPartitionTable, lastPosInPartitionTable);
+            long newPartitionTableSize = this->lowValTable.size();
+            lastPosInPartitionTable += newPartitionTableSize - oldPartitionTableSize; 
+            rs::Coord<KeyType>* middleInserted = middleResults.first;
+            size_t middleSize = middleResults.second;
 
-
-            lastPosInPartitionTable = std::lower_bound(highValTable.begin(), highValTable.end(), tempHigh) - highValTable.begin();           
             long startPos = this->highPosTable[lastPosInPartitionTable] + 1;
             long endPos = (lastPosInPartitionTable < this->lowPosTable.size() - 1) ? 
                             this->lowPosTable[lastPosInPartitionTable + 1] - 1 : this->data.size() - 2;
 
             KeyType startVal = this->getMinElement(startPos, endPos);
             //KeyType startVal = *std::min_element(data.begin() + startPos, data.begin() + endPos + 1);
-            std::tuple<long, long, rs::Coord<KeyType>*, size_t> secondResults;
-            long highValPosInArray;;
-            rs::Coord<KeyType>* secondInserted = nullptr;
-            size_t secondSize = 0;
-            print_buffer(secondInserted, secondSize);
+            std::tuple<long, long, rs::Coord<KeyType>*, size_t> secondResults = this->buildLearnedIndex(startVal, highVal, startPos, endPos);
+            long highValPosInArray = std::get<1>(secondResults);
+            rs::Coord<KeyType>* secondInserted = std::get<2>(secondResults);
+            size_t secondSize = std::get<3>(secondResults);
 
-            if (startVal < highVal)
-            {
-                secondResults = this->buildLearnedIndex(startVal, highVal, startPos, endPos);
-                highValPosInArray = std::get<1>(secondResults);
-                secondInserted = std::get<2>(secondResults);
-                secondSize = std::get<3>(secondResults);
-            }
-            else
-            {
-                highValPosInArray = std::get<1>(firstResult);
-                long pos = std::lower_bound(highValTable.begin(), highValTable.end(), highVal) - highValTable.begin() - 1;
-                KeyType newLowVal = highValTable[pos];
-                baseLearnedModel<KeyType> *learnedIndexModel = learnedIndexTable[pos];
-                std::pair<rs::Coord<KeyType>*, size_t> insertedAndPendingResults1 = getResultsFromInsertedAndPendingData(learnedIndexModel, newLowVal, highVal);
-                std::pair<rs::Coord<KeyType>*, size_t> insertedAndPendingResults2 = {nullptr, 0};
-                rs::Coord<KeyType>* finalResultData = nullptr;
-                size_t finalResultSize = 0;
-                if (pos < highPosTable.size() - 1)
-                {
-                    learnedIndexModel = learnedIndexTable[pos+1];
-                    insertedAndPendingResults2 = getResultsFromInsertedAndPendingData(learnedIndexModel, newLowVal, highVal);
-                }
-                finalResultSize = insertedAndPendingResults1.second + insertedAndPendingResults2.second;
-                if (finalResultSize > 0)
-                {
-                #ifdef GET_DATA    
-                    finalResultData = new rs::Coord<KeyType> [finalResultSize];
-                    std::copy(insertedAndPendingResults1.first, insertedAndPendingResults1.first + insertedAndPendingResults1.second, finalResultData);
-                    std::copy(insertedAndPendingResults2.first, insertedAndPendingResults2.first + insertedAndPendingResults2.second, finalResultData + insertedAndPendingResults1.second);
-                    secondInserted = finalResultData;
-                    secondSize = finalResultSize;
-                #endif
-                }
-
-            }
-
-            std::pair<rs::Coord<KeyType>*, size_t> insertedDataBetween = {nullptr, 0};
-            if (lastPosInPartitionTable < highValTable.size() - 1)
-                insertedDataBetween = insertDataBetweenBoundaries(lastPosInPartitionTable, lastPosInPartitionTable+1);
+            lastPosInPartitionTable = std::lower_bound(highValTable.begin(), highValTable.end(), highVal) - highValTable.begin();
+            std::pair<rs::Coord<KeyType>*, size_t> insertedDataBetween = insertDataBetweenBoundaries(lowValPosInPartitionTable, lastPosInPartitionTable);
             rs::Coord<KeyType>* betweenData = insertedDataBetween.first;
             size_t betweenDataSize = insertedDataBetween.second;
-            print_buffer(betweenData, betweenDataSize);
-
-            size_t finalInsertedAndPendingResultsSize = firstSize + secondSize + betweenDataSize;
-            rs::Coord<KeyType>* finalInsertedAndPendingResults = nullptr;
-        #ifdef GET_DATA    
-            finalInsertedAndPendingResults = new rs::Coord<KeyType> [finalInsertedAndPendingResultsSize];
-            std::copy(firstInserted, firstInserted+firstSize, finalInsertedAndPendingResults);
-            std::copy(secondInserted, secondInserted+secondSize, finalInsertedAndPendingResults+firstSize);
-            std::copy(betweenData, betweenData+betweenDataSize, finalInsertedAndPendingResults+firstSize+secondSize);
-        #endif    
 
             //if one point is left to be cracked, add that point to the existing partition info
             if (startVal == highVal)
@@ -1344,6 +1017,13 @@ class LAI{
                 this->learnedIndexTable[lastPosInPartitionTable] = learnedIndexModel;
                 */
             }
+            size_t finalInsertedAndPendingResultsSize = firstSize + secondSize + middleSize + betweenDataSize;
+            rs::Coord<KeyType>* finalInsertedAndPendingResults = new rs::Coord<KeyType> [finalInsertedAndPendingResultsSize];
+            std::copy(firstInserted, firstInserted+firstSize, finalInsertedAndPendingResults);
+            std::copy(secondInserted, secondInserted+secondSize, finalInsertedAndPendingResults+firstSize);
+            std::copy(middleInserted, middleInserted+middleSize, finalInsertedAndPendingResults+firstSize+secondSize);
+            std::copy(betweenData, betweenData+betweenDataSize, finalInsertedAndPendingResults+firstSize+secondSize+middleSize);
+
                            
             return {lowValPosInArray, highValPosInArray, finalInsertedAndPendingResults, finalInsertedAndPendingResultsSize};
         }
@@ -1412,17 +1092,11 @@ class LAI{
         {
             long firstPosInPartitionTable = this->getFirstEntryGreaterThanLowVal(lowVal);
             long lastPosInPartitionTable = this->getLastEntryLessThanHighVal(highVal);
-            KeyType tempHighVal = highValTable[lastPosInPartitionTable];
-
-            std::tuple<long, long, rs::Coord<KeyType>*, size_t> firstResults = crackForLowValue(lowVal, tempHighVal, lastPosInPartitionTable);
+            
+            std::tuple<long, long, rs::Coord<KeyType>*, size_t> firstResults = crackForLowValue(lowVal, highValTable[lastPosInPartitionTable], lastPosInPartitionTable);
             long lowValPosInArray = std::get<0>(firstResults);
             rs::Coord<KeyType>* firstInserted = std::get<2>(firstResults);
             size_t firstSize = std::get<3>(firstResults);
-            print_buffer(firstInserted, firstSize);
-
-            firstPosInPartitionTable++;
-            lastPosInPartitionTable = std::lower_bound(highValTable.begin(), highValTable.end(), tempHighVal) - highValTable.begin();
-
 
             long startPos = this->highPosTable[lastPosInPartitionTable] + 1;
             long endPos = (lastPosInPartitionTable < this->lowPosTable.size() - 1) ? 
@@ -1434,36 +1108,22 @@ class LAI{
             long highValPosInArray = std::get<1>(secondResults);
             rs::Coord<KeyType>* secondInserted = std::get<2>(secondResults);
             size_t secondSize = std::get<3>(secondResults);
-            print_buffer(secondInserted, secondSize);
 
-            std::pair<rs::Coord<KeyType>*, size_t> insertedDataBetween = {nullptr, 0};
-            if (lastPosInPartitionTable < highValTable.size() - 1)
-                insertedDataBetween = insertDataBetweenBoundaries(lastPosInPartitionTable, lastPosInPartitionTable+1);
-            rs::Coord<KeyType>* betweenData = insertedDataBetween.first;
-            size_t betweenDataSize = insertedDataBetween.second;
-            print_buffer(betweenData, betweenDataSize);
-
-            size_t finalInsertedAndPendingResultsSize = firstSize + secondSize + betweenDataSize;
-            rs::Coord<KeyType>* finalInsertedAndPendingResults = nullptr;
-        #ifdef GET_DATA
-            finalInsertedAndPendingResults = new rs::Coord<KeyType> [finalInsertedAndPendingResultsSize];
+            size_t finalInsertedAndPendingResultsSize = firstSize + secondSize;
+            rs::Coord<KeyType>* finalInsertedAndPendingResults = new rs::Coord<KeyType> [finalInsertedAndPendingResultsSize];
             std::copy(firstInserted, firstInserted+firstSize, finalInsertedAndPendingResults);
             std::copy(secondInserted, secondInserted+secondSize, finalInsertedAndPendingResults+firstSize);
-            std::copy(betweenData, betweenData+betweenDataSize, finalInsertedAndPendingResults+firstSize+secondSize);
-        #endif
+
             return {lowValPosInArray, highValPosInArray, finalInsertedAndPendingResults, finalInsertedAndPendingResultsSize};
         }
 #endif
 
 
         
-        std::pair<rs::Coord<KeyType>*, size_t>  buildIndexForGap(long firstPosInPartitionTable, long lastPosInPartitionTable, KeyType lowVal, KeyType highVal)
+        std::pair<rs::Coord<KeyType>*, size_t>  buildIndexForGap(long firstPosInPartitionTable, long lastPosInPartitionTable)
         {
             rs::Coord<KeyType>* res = nullptr;
             size_t resSize = 0;
-            rs::Coord<KeyType>* insertedData = nullptr;
-            size_t size = 0;
-            bool flag = false;
 
             for (long i = firstPosInPartitionTable ; i < lastPosInPartitionTable ; i++)
             {
@@ -1475,32 +1135,16 @@ class LAI{
                     std::tuple<long, long, rs::Coord<KeyType>*, size_t> tup = this->buildLearnedIndex(lowVal, highVal, startPos, endPos-1);
                     lastPosInPartitionTable += 1;
 
-                    insertedData = std::get<2>(tup);
-                    size = std::get<3>(tup);
-                    flag = true;
+                    rs::Coord<KeyType>* insertedData = std::get<2>(tup);
+                    size_t size = std::get<3>(tup);
+
+                    rs::Coord<KeyType>* temp = new rs::Coord<KeyType> [resSize + size];
+                    std::copy(res, res+resSize, temp);
+                    std::copy(insertedData, insertedData+size,temp+resSize);
+                    resSize += size;
+                    res = temp;
                     //this->queryTypeCount[BUILD_LEARNED_INDEX]++; 
                 }
-                else
-                {
-                    if (boundCheckedForInsertAndPendingData[i+1])
-                        continue;
-                    KeyType tempLowVal = lowValTable[i+1], tempHighVal = highValTable[i+1];
-                    tempLowVal = std::max(lowVal, tempLowVal);
-                    tempHighVal = std::min(highVal, tempHighVal);
-                    baseLearnedModel<KeyType> *learnedIndexModel = learnedIndexTable[i+1];
-                    std::pair<rs::Coord<KeyType>*, size_t> p = getResultsFromInsertedAndPendingData(learnedIndexModel, tempLowVal, tempHighVal);
-                    insertedData = p.first;
-                    size = p.second;
-                }
-                rs::Coord<KeyType>* temp = nullptr;
-            #ifdef GET_DATA
-                temp = new rs::Coord<KeyType> [resSize + size];
-                std::copy(res, res+resSize, temp);
-                std::copy(insertedData, insertedData+size,temp+resSize);
-            #endif
-                resSize += size;
-                res = temp;
-
             }
             return {res, resSize};
             
