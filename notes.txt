@@ -1,0 +1,767 @@
+For vectorizing use -mavx and -O3 flags. 
+In order to know if a loop is not vectorized and why, the flag -ftree-vectorizer-verbose=2 should also be used.
+
+g++ -O3 -mavx -mfma -ftree-vectorizer-verbose=2 mytest.cpp
+
+g++ -g -O3 -mavx -mfma -ftree-vectorizer-verbose=2 test.cpp -o LAI
+
+
+valgrind --tool=callgrind --trace-children=yes ./LAI
+sudo apt-get install kcachegrind
+kcachegrind callgrind.out.335667
+
+
+g++ -pg test2.cpp -o LAI
+./LAI
+gprof LAI gmon.out > analysis.txt
+pip install gprof2dot
+gprof LAI | gprof2dot | dot -Tpng -o output.png
+
+
+Error:
+--------------------------
+Dataset : 
+251 995 769 126 957 366 845 622 891 252 266 889 780 997 850 912 389 725 808 626 292 341 725 590 562 935 842 995 837 705 334 676 754 223 329 496 257 613 884 113 
+Query = (850 , 912) : 31 35
+1
+****************************************
+Query = (113 , 251) : 1 4
+1
+****************************************
+Query = (754 , 889) : 24 33
+1
+****************************************
+Query = (126 , 251) : 2 4
+1
+****************************************
+Query = (725 , 891) : 23 34
+1
+****************************************
+Query = (113 , 957) : 1 37
+1
+****************************************
+Query = (257 , 613) : 6 17
+1
+****************************************
+Query = (389 , 995) : 13 38
+0
+****************************************
+Query = (126 , 725) : 2 22
+1
+****************************************
+Query = (113 , 496) : 1 14
+1
+****************************************
+
+
+
+For 100000000 (100M) data on Lab machine Jan 3, 2025 (-O3 -mavx enabled)
+------------------------------------------------------
+Dataset Generation Completed
+Time To Sort : 7.18829 seconds
+Time To Build RS : 82.5046 seconds
+
+Executed 500 queries
+RS = 1.79387e+08
+LAI = 1.79778e+08
+Avg Query Coverage = 0.322096
+
+Executed 1000 queries
+RS = 961.672
+LAI = 216130
+Avg Query Coverage = 0.339334
+
+Executed 1500 queries
+RS = 942.348
+LAI = 1168.31
+Avg Query Coverage = 0.322677
+
+Executed 2000 queries
+RS = 914.826
+LAI = 1218.17
+Avg Query Coverage = 0.320936
+
+Executed 2500 queries
+RS = 940.218
+LAI = 270200
+Avg Query Coverage = 0.364001
+
+Executed 3000 queries
+RS = 943.494
+LAI = 1210.34
+Avg Query Coverage = 0.326807
+
+Executed 3500 queries
+RS = 942.736
+LAI = 1171.88
+Avg Query Coverage = 0.32906
+
+Executed 4000 queries
+RS = 921.612
+LAI = 1170.95
+Avg Query Coverage = 0.322899
+
+Executed 4500 queries
+RS = 931.928
+LAI = 21355.5
+Avg Query Coverage = 0.320168
+
+Executed 5000 queries
+RS = 1017.78
+LAI = 1330.41
+Avg Query Coverage = 0.333713
+
+Executed 5500 queries
+RS = 937.286
+LAI = 1236.32
+Avg Query Coverage = 0.321117
+
+Executed 6000 queries
+RS = 966.02
+LAI = 1260.62
+Avg Query Coverage = 0.315679
+
+Executed 6500 queries
+RS = 964.59
+LAI = 30133.1
+Avg Query Coverage = 0.332304
+
+Executed 7000 queries
+RS = 995.356
+LAI = 1326.16
+Avg Query Coverage = 0.328774
+
+Executed 7500 queries
+RS = 936.5
+LAI = 1221.34
+Avg Query Coverage = 0.338489
+
+Executed 8000 queries
+RS = 962.294
+LAI = 1258.98
+Avg Query Coverage = 0.307904
+
+Executed 8500 queries
+RS = 972.538
+LAI = 1261.52
+Avg Query Coverage = 0.337962
+
+Executed 9000 queries
+RS = 901.262
+LAI = 1239.39
+Avg Query Coverage = 0.315053
+
+Executed 9500 queries
+RS = 946.728
+LAI = 14988.9
+Avg Query Coverage = 0.3326
+
+Executed 10000 queries
+RS = 987.278
+LAI = 1305.7
+Avg Query Coverage = 0.329008
+***********************************
+RS : 1.79387e+08
+961.672
+942.348
+914.826
+940.218
+943.494
+942.736
+921.612
+931.928
+1017.78
+937.286
+966.02
+964.59
+995.356
+936.5
+962.294
+972.538
+901.262
+946.728
+987.278
+LAI : 1.79778e+08
+216130
+1168.31
+1218.17
+270200
+1210.34
+1171.88
+1170.95
+21355.5
+1330.41
+1236.32
+1260.62
+30133.1
+1326.16
+1221.34
+1258.98
+1261.52
+1239.39
+14988.9
+1305.7
+
+
+
+
+For 100000000 (100M) data on Lab machine Jan 3, 2025 (-O3 -mavx not enabled)
+------------------------------------------------------
+Dataset Generation Completed
+Time To Sort : 45.4882 seconds
+Time To Build RS : 90.7973 seconds
+
+Executed 500 queries
+RS = 2.72573e+08
+LAI = 2.43129e+08
+Avg Query Coverage = 0.333881
+
+Executed 1000 queries
+RS = 1417.5
+LAI = 130211
+Avg Query Coverage = 0.335646
+
+Executed 1500 queries
+RS = 1450.74
+LAI = 6743.36
+Avg Query Coverage = 0.340829
+
+Executed 2000 queries
+RS = 1414.94
+LAI = 109910
+Avg Query Coverage = 0.363495
+
+Executed 2500 queries
+RS = 1397.27
+LAI = 41869.3
+Avg Query Coverage = 0.324969
+
+Executed 3000 queries
+RS = 1368.63
+LAI = 11197.3
+Avg Query Coverage = 0.328285
+
+Executed 3500 queries
+RS = 1385.54
+LAI = 7382.63
+Avg Query Coverage = 0.344575
+
+Executed 4000 queries
+RS = 1338.7
+LAI = 7439.15
+Avg Query Coverage = 0.317395
+
+Executed 4500 queries
+RS = 1360.96
+LAI = 7363.69
+Avg Query Coverage = 0.325833
+
+Executed 5000 queries
+RS = 1317.96
+LAI = 7397.68
+Avg Query Coverage = 0.336368
+
+Executed 5500 queries
+RS = 1329.19
+LAI = 7494.52
+Avg Query Coverage = 0.330147
+
+Executed 6000 queries
+RS = 1304.38
+LAI = 12465
+Avg Query Coverage = 0.304114
+
+Executed 6500 queries
+RS = 1311.42
+LAI = 7509.3
+Avg Query Coverage = 0.32131
+
+Executed 7000 queries
+RS = 1296.59
+LAI = 7600.46
+Avg Query Coverage = 0.345728
+
+Executed 7500 queries
+RS = 1303.66
+LAI = 7479.42
+Avg Query Coverage = 0.337631
+
+Executed 8000 queries
+RS = 1302.79
+LAI = 7475.96
+Avg Query Coverage = 0.324819
+
+Executed 8500 queries
+RS = 1301.97
+LAI = 7486.8
+Avg Query Coverage = 0.328689
+
+Executed 9000 queries
+RS = 1297.96
+LAI = 7462.1
+Avg Query Coverage = 0.329141
+
+Executed 9500 queries
+RS = 1296.98
+LAI = 7530.88
+Avg Query Coverage = 0.331218
+
+Executed 10000 queries
+RS = 1307.58
+LAI = 7449.35
+Avg Query Coverage = 0.342531
+***********************************
+RS : 2.72573e+08
+1417.5
+1450.74
+1414.94
+1397.27
+1368.63
+1385.54
+1338.7
+1360.96
+1317.96
+1329.19
+1304.38
+1311.42
+1296.59
+1303.66
+1302.79
+1301.97
+1297.96
+1296.98
+1307.58
+LAI : 2.43129e+08
+130211
+6743.36
+109910
+41869.3
+11197.3
+7382.63
+7439.15
+7363.69
+7397.68
+7494.52
+12465
+7509.3
+7600.46
+7479.42
+7475.96
+7486.8
+7462.1
+7530.88
+7449.35
+
+
+For 100000000 (100M) data on home machine Jan 3, 2025 (-O3 -mavx enabled)
+------------------------------------------------------
+Dataset Generation Completed
+Time To Sort : 11.0869 seconds
+Time To Build RS : 3.05663 seconds
+
+Executed 500 queries
+RS = 2.82878e+07
+LAI = 2.07506e+07
+Avg Query Coverage = 0.33796
+
+Executed 1000 queries
+RS = 753.518
+LAI = 10373.2
+Avg Query Coverage = 0.312082
+
+Executed 1500 queries
+RS = 794.676
+LAI = 5077.86
+Avg Query Coverage = 0.331942
+
+Executed 2000 queries
+RS = 725.066
+LAI = 1075.07
+Avg Query Coverage = 0.329411
+
+Executed 2500 queries
+RS = 897.486
+LAI = 1231.07
+Avg Query Coverage = 0.335839
+
+Executed 3000 queries
+RS = 825.048
+LAI = 1219.2
+Avg Query Coverage = 0.337084
+
+Executed 3500 queries
+RS = 761.746
+LAI = 2110.31
+Avg Query Coverage = 0.343494
+
+Executed 4000 queries
+RS = 993.472
+LAI = 1080.76
+Avg Query Coverage = 0.343419
+
+Executed 4500 queries
+RS = 874.616
+LAI = 1144.07
+Avg Query Coverage = 0.327837
+
+Executed 5000 queries
+RS = 677.902
+LAI = 1125.3
+Avg Query Coverage = 0.331532
+
+Executed 5500 queries
+RS = 571.496
+LAI = 917.318
+Avg Query Coverage = 0.340833
+
+Executed 6000 queries
+RS = 828.534
+LAI = 1046.13
+Avg Query Coverage = 0.336627
+
+Executed 6500 queries
+RS = 668.772
+LAI = 3451.42
+Avg Query Coverage = 0.334723
+
+Executed 7000 queries
+RS = 940.624
+LAI = 1112.57
+Avg Query Coverage = 0.346718
+
+Executed 7500 queries
+RS = 968.366
+LAI = 1502.9
+Avg Query Coverage = 0.327817
+
+Executed 8000 queries
+RS = 823.484
+LAI = 1165.63
+Avg Query Coverage = 0.357866
+
+Executed 8500 queries
+RS = 668.898
+LAI = 1011.56
+Avg Query Coverage = 0.353549
+
+Executed 9000 queries
+RS = 808.454
+LAI = 988.752
+Avg Query Coverage = 0.344201
+
+Executed 9500 queries
+RS = 766.316
+LAI = 973.37
+Avg Query Coverage = 0.344228
+
+Executed 10000 queries
+RS = 550.846
+LAI = 853.716
+Avg Query Coverage = 0.337396
+***********************************
+RS : 2.82878e+07
+753.518
+794.676
+725.066
+897.486
+825.048
+761.746
+993.472
+874.616
+677.902
+571.496
+828.534
+668.772
+940.624
+968.366
+823.484
+668.898
+808.454
+766.316
+550.846
+LAI : 2.07506e+07
+10373.2
+5077.86
+1075.07
+1231.07
+1219.2
+2110.31
+1080.76
+1144.07
+1125.3
+917.318
+1046.13
+3451.42
+1112.57
+1502.9
+1165.63
+1011.56
+988.752
+973.37
+853.716
+
+
+For 100000000 (100M) data on home machine Jan 3, 2025 (-O3 -mavx not enabled)
+------------------------------------------------------
+Dataset Generation Completed
+Time To Sort : 36.1629 seconds
+Time To Build RS : 6.8135 seconds
+
+Executed 500 queries
+RS = 8.59541e+07
+LAI = 6.18535e+07
+Avg Query Coverage = 0.326425
+
+Executed 1000 queries
+RS = 1588.76
+LAI = 7946.88
+Avg Query Coverage = 0.347559
+
+Executed 1500 queries
+RS = 1534.47
+LAI = 16515.2
+Avg Query Coverage = 0.343873
+
+Executed 2000 queries
+RS = 1116.27
+LAI = 15659
+Avg Query Coverage = 0.326915
+
+Executed 2500 queries
+RS = 1054.21
+LAI = 6624.2
+Avg Query Coverage = 0.34953
+
+Executed 3000 queries
+RS = 1628.28
+LAI = 8762.77
+Avg Query Coverage = 0.330382
+
+Executed 3500 queries
+RS = 1417.34
+LAI = 8517.87
+Avg Query Coverage = 0.328305
+
+Executed 4000 queries
+RS = 1601.36
+LAI = 10833.4
+Avg Query Coverage = 0.338363
+
+Executed 4500 queries
+RS = 1251.24
+LAI = 7627.62
+Avg Query Coverage = 0.33318
+
+Executed 5000 queries
+RS = 1285.81
+LAI = 7433.58
+Avg Query Coverage = 0.330899
+
+Executed 5500 queries
+RS = 1092.21
+LAI = 6617.81
+Avg Query Coverage = 0.340434
+
+Executed 6000 queries
+RS = 1188.14
+LAI = 8412.72
+Avg Query Coverage = 0.333108
+
+Executed 6500 queries
+RS = 1168.65
+LAI = 15647.7
+Avg Query Coverage = 0.338244
+
+Executed 7000 queries
+RS = 1438.96
+LAI = 23968.8
+Avg Query Coverage = 0.333167
+
+Executed 7500 queries
+RS = 1209.6
+LAI = 7698.04
+Avg Query Coverage = 0.337214
+
+Executed 8000 queries
+RS = 1233.23
+LAI = 7797.77
+Avg Query Coverage = 0.328417
+
+Executed 8500 queries
+RS = 975.58
+LAI = 6616.95
+Avg Query Coverage = 0.324333
+
+Executed 9000 queries
+RS = 1344.29
+LAI = 8715.07
+Avg Query Coverage = 0.341716
+
+Executed 9500 queries
+RS = 1221.86
+LAI = 8177.87
+Avg Query Coverage = 0.327538
+
+Executed 10000 queries
+RS = 1537.15
+LAI = 8885.76
+Avg Query Coverage = 0.329179
+***********************************
+RS : 8.59541e+07
+1588.76
+1534.47
+1116.27
+1054.21
+1628.28
+1417.34
+1601.36
+1251.24
+1285.81
+1092.21
+1188.14
+1168.65
+1438.96
+1209.6
+1233.23
+975.58
+1344.29
+1221.86
+1537.15
+LAI : 6.18535e+07
+7946.88
+16515.2
+15659
+6624.2
+8762.77
+8517.87
+10833.4
+7627.62
+7433.58
+6617.81
+8412.72
+15647.7
+23968.8
+7698.04
+7797.77
+6616.95
+8715.07
+8177.87
+8885.76
+
+
+Different adaptive indexes
+----------------------------------
+https://github.com/MULTIDAI/MultiDAI
+
+https://github.com/felix-halim/scrack
+
+
+g++ -g -O3 -mavx test_other_adaptive_index.cpp MultiDAI/CKDTree.cpp MultiDAI/KDNode.cpp MultiDAI/KDTree.cpp MultiDAI/LazyCKDTree.cpp MultiDAI/Helper.cpp MultiDAI/QUASII.cpp -o LAI
+
+
+CKDTree
+LazyCKDTree
+ModularCKDTree - LazyCrackingStrategy
+ModularCKDTree - DD1CStochasticCrackingStrategy
+ModularCKDTree - DD1RStochasticCrackingStrategy
+ModularCKDTree - MDD1RStochasticCrackingStrategy
+HybridKDTree - MDD1RStochasticCrackingStrategy
+HybridKDTree - DD1RStochasticCrackingStrategy
+HybridKDTree_level - DD1RStochasticCrackingStrategy
+QUASII
+
+
+Dataset Generation Completed of size: 1000000
+Time To Sort : 0.0769778 seconds
+Time To Build RS : 0.0269302 seconds
+
+Executed 500 queries
+RS = 208839
+CKD = 2.61606e+08
+Lazy CKD = 2.5585e+08
+QUASII = 9.78528e+07
+LAI = 396541
+Avg Query Coverage = 0.321702
+
+Executed 1000 queries
+RS = 1037.04
+CKD = 2.82993e+08
+Lazy CKD = 2.78683e+08
+QUASII = 1.09786e+08
+LAI = 3373.85
+Avg Query Coverage = 0.346296
+
+Executed 1500 queries
+RS = 1036.18
+CKD = 2.66337e+08
+Lazy CKD = 2.63019e+08
+QUASII = 1.03091e+08
+LAI = 3340.48
+Avg Query Coverage = 0.323153
+
+Executed 2000 queries
+RS = 1108.61
+CKD = 2.49954e+08
+Lazy CKD = 2.46862e+08
+QUASII = 9.87675e+07
+LAI = 3328.59
+Avg Query Coverage = 0.315357
+
+Executed 2500 queries
+RS = 1085.97
+CKD = 2.60637e+08
+Lazy CKD = 2.57385e+08
+QUASII = 1.04885e+08
+LAI = 34015.5
+Avg Query Coverage = 0.330574
+
+Executed 3000 queries
+RS = 1005.8
+CKD = 2.57631e+08
+Lazy CKD = 2.55151e+08
+QUASII = 1.04956e+08
+LAI = 31254.6
+Avg Query Coverage = 0.326438
+***********************************
+
+
+./bin/crack data/100000000.data 10000 1e-2 SeqOver NOUP view 600
+
+Adding sub-runs and query file
+------------------------------------
+./bin/crack data/100000000.data 10000 1e-2 Random NOUP view 600 1000 experiments/100000000/Skew.txt
+
+
+Dataset
+------------
+https://www.kaggle.com/datasets/datasnaek/youtube-new?select=CAvideos.csv
+
+
+
+./LAI data_and_queries/100_million/data.txt 100000000 data_and_queries/100_million/queries_sel_random/SeqZoomIn.txt 2000
+
+
+/bin/aics1r ../data_and_queries/100_million/data.txt 20000 0 Periodic NOUP view 600 2000 ../data_and_queries/100_million/queries_sel_random/ZoomIn.txt
+
+
+
+
+Install pycaret for workload prediction
+------------------------------------------
+
+https://machinelearningmastery.com/time-series-forecasting-with-pycaret-building-multi-step-prediction-model/
+
+pip install pycaret
+
+if lightgbm installation fails due to non-availability of openmp support, install lightgbm without openmp support using
+pip install --no-binary lightgbm --config-settings=cmake.define.USE_OPENMP=OFF 'lightgbm>=4.0.0'
+
+Once lightgbm is installed, run "pip install pycaret" again
+
+If GLIBCXX_3.4.30' not found error is thrown then run:
+conda install -c conda-forge gcc=12.1.0  
+
+
+To compile eval_learned_index.cpp
+---------------------------------------------
+g++ -O3 -mavx -mfma -fopenmp eval_learned_index.cpp -o eval_learned_index -ltbb
