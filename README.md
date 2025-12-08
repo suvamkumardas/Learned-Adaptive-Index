@@ -22,3 +22,6 @@ e.g.
 	
 4. Please note that, to execute LAI the data must be read from a file stored in "data_and_queries/100_million/" directory. To run other workloads, the name of the workload file should be provided as a command line argument, as shown above, without the ".txt" extension.
 
+To run experiments on the YCSB dataset run the command
+- g++ -mavx -O3 -mfma test_ycsb.cpp -o test_ycsb
+- ./test_ycsb data_and_queries/YCSB2/query_uniform_read_only.txt (replace query_uniform_read_only.txt with other files placed under "data_and_queries/YCSB2" directory.
